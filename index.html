@@ -132,15 +132,22 @@
             position: absolute;
             left: 0;
             top: 0;
-            width: 2.5rem;
+            width: 3rem;
             text-align: right;
             font-weight: bold;
             color: #333;
         }
+        
+        .timeline-date small {
+            font-size: 0.65rem;
+            display: block;
+            font-weight: normal;
+            color: #666;
+        }
 
         .timeline-dot {
             position: absolute;
-            left: 2.75rem;
+            left: 3.25rem;
             top: 0.7rem;
             width: 0.5rem;
             height: 0.5rem;
@@ -265,7 +272,9 @@
                     <button onclick="loadTimelineFromAPI()">Load Timeline</button>
                     <button onclick="toggleSort()">Toggle Sort Order</button>
                     <button onclick="forceRefresh()">Force Refresh</button>
+                    <button onclick="manageCacheSettings()">Cache Settings</button>
                 </p>
+                <div id="cacheInfo" style="font-size: 0.8rem; color: #666; margin-top: 0.5rem;"></div>
             </div>
 
             <div id="tagFilters" class="tag-filters" style="display: none;">
@@ -284,11 +293,45 @@
         </section>
     </article>
 
+    <!-- Cache Settings Modal -->
+    <div id="cacheModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000;">
+        <div style="position: relative; background-color: #fffff8; margin: 10% auto; padding: 20px; width: 50%; max-width: 500px; border-left: 3px solid #333;">
+            <button onclick="document.getElementById('cacheModal').style.display='none'" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            <h2>Cache Settings</h2>
+            <div style="margin-bottom: 1rem;">
+                <p>Cache Duration:</p>
+                <select id="cacheDuration" style="width: 100%; padding: 0.5rem; margin-bottom: 1rem;">
+                    <option value="3600000">1 Hour</option>
+                    <option value="86400000">1 Day</option>
+                    <option value="604800000">1 Week</option>
+                    <option value="2592000000">1 Month</option>
+                    <option value="-1">No Expiration</option>
+                </select>
+            </div>
+            <div id="cacheStats" style="margin-bottom: 1rem; font-size: 0.9rem;">
+                <p>Cache statistics loading...</p>
+            </div>
+            <div>
+                <button onclick="saveAndCloseCacheSettings()" style="background-color: #333; color: white; padding: 0.5rem 1rem; border: none; margin-right: 1rem;">Save Settings</button>
+                <button onclick="clearCacheAndClose()" style="background-color: #a00; color: white; padding: 0.5rem 1rem; border: none;">Clear Cache</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let timelineData = [];
         let allCards = [];
         let sortAscending = true;
         let activeTags = new Set();
+        
+        // Cache configuration
+        const CACHE_CONFIG = {
+            KEY_CARDS: 'mochiCards',
+            KEY_PROCESSED_CARDS: 'mochiProcessedCards',
+            KEY_TIMESTAMP: 'mochiCardsTimestamp',
+            KEY_DURATION: 'mochiCacheDuration',
+            DEFAULT_DURATION: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
+        };
 
         function showTab(tabName) {
             // Hide all tabs
@@ -355,7 +398,15 @@
                     
                     // Handle BCE dates (negative years)
                     if (match[2] && (match[2].toUpperCase() === 'BCE' || match[2].toUpperCase() === 'BC')) {
-                        return new Date(-parseInt(match[1]), 0, 1);
+                        const yearStr = match[1].trim();
+                        let year = parseInt(yearStr);
+                        
+                        // Handle cases like "125k BCE" that might have been missed by the k pattern
+                        if (yearStr.toLowerCase().includes('k')) {
+                            year = parseInt(yearStr.replace(/k/i, '')) * 1000;
+                        }
+                        
+                        return new Date(-year, 0, 1);
                     }
                     
                     // Handle just year
@@ -400,7 +451,17 @@
                 const dateStr = match.replace(/[{}]/g, '').trim();
                 
                 // Handle BCE dates
-                if (dateStr.includes('BCE')) {
+                if (dateStr.toLowerCase().includes('bce') || dateStr.toLowerCase().includes('bc')) {
+                    // First check for 'k' notation (thousands)
+                    if (dateStr.includes('k')) {
+                        const yearMatch = dateStr.match(/(\d+)k/i);
+                        if (yearMatch) {
+                            const year = parseInt(yearMatch[1]) * 1000;
+                            return new Date(-year, 0, 1);
+                        }
+                    }
+                    
+                    // Then check for regular numbers
                     const yearMatch = dateStr.match(/(\d+)/);
                     if (yearMatch) {
                         const year = parseInt(yearMatch[1]);
@@ -410,7 +471,17 @@
                 }
                 
                 // Handle CE dates
-                if (dateStr.includes('CE')) {
+                if (dateStr.toLowerCase().includes('ce') || dateStr.toLowerCase().includes('ad')) {
+                    // First check for 'k' notation (thousands)
+                    if (dateStr.includes('k')) {
+                        const yearMatch = dateStr.match(/(\d+)k/i);
+                        if (yearMatch) {
+                            const year = parseInt(yearMatch[1]) * 1000;
+                            return new Date(year, 0, 1);
+                        }
+                    }
+                    
+                    // Then check for regular numbers
                     const yearMatch = dateStr.match(/(\d+)/);
                     if (yearMatch) {
                         const year = parseInt(yearMatch[1]);
@@ -434,13 +505,13 @@
                     }
                 }
                 
-                // Handle year ranges (e.g., "6k BCE")
+                // Handle year ranges with k (e.g., "6k BCE" or "125k BCE")
                 if (dateStr.includes('k')) {
                     const yearMatch = dateStr.match(/(\d+)k/);
                     if (yearMatch) {
                         const year = parseInt(yearMatch[1]) * 1000;
                         // Check if it's BCE
-                        if (dateStr.includes('BCE')) {
+                        if (dateStr.toLowerCase().includes('bce') || dateStr.toLowerCase().includes('bc')) {
                             return new Date(-year, 0, 1);
                         }
                         return new Date(year, 0, 1);
@@ -483,11 +554,22 @@
             const year = date.getFullYear();
             
             // Handle BCE dates
-            if (year < 0) {
-                return `${Math.abs(year)} BCE`;
+            if (year <= 0) {
+                // For exact year BCE
+                if (date.getMonth() === 0 && date.getDate() === 1) {
+                    return `${Math.abs(year)} BCE`;
+                }
+                
+                // For dates with month/day info in BCE
+                const options = {
+                    month: 'long',
+                    day: 'numeric'
+                };
+                const monthDay = date.toLocaleDateString('en-US', options);
+                return `${monthDay}, ${Math.abs(year)} BCE`;
             }
             
-            // For dates with full information
+            // For dates with full information (CE dates)
             if (date.getMonth() !== 0 || date.getDate() !== 1) {
                 return date.toLocaleDateString('en-US', {
                     year: 'numeric',
@@ -496,7 +578,7 @@
                 });
             }
             
-            // For year-only dates
+            // For year-only dates (CE)
             return year.toString();
         }
 
@@ -548,133 +630,62 @@
             timeline.innerHTML = '<div class="timeline-line"></div><p class="loading">Loading cards from Mochi...</p>';
 
             try {
-                // Check cache first
-                const cachedData = localStorage.getItem('mochiCards');
-                const cacheTimestamp = localStorage.getItem('mochiCardsTimestamp');
-                const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-
-                let cards;
-                if (cachedData && cacheTimestamp && (Date.now() - parseInt(cacheTimestamp) < CACHE_DURATION)) {
-                    cards = JSON.parse(cachedData);
-                    console.log('Using cached cards data');
-                } else {
-                    // Fetch all cards using pagination
-                    cards = [];
-                    let bookmark = null;
+                // Check if we already have processed cards in cache
+                const cachedProcessedCards = localStorage.getItem(CACHE_CONFIG.KEY_PROCESSED_CARDS);
+                
+                if (cachedProcessedCards && isCacheValid()) {
+                    // Use cached processed cards if available and valid
+                    allCards = JSON.parse(cachedProcessedCards);
+                    console.log('Using cached processed cards:', allCards.length);
                     
-                    while (true) {
-                        try {
-                            // Add delay between requests to avoid rate limiting
-                            if (bookmark) {
-                                await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
-                            }
-
-                            const url = new URL('https://app.mochi.cards/api/cards');
-                            url.searchParams.append('limit', '100');
-                            if (bookmark) {
-                                url.searchParams.append('bookmark', bookmark);
-                            }
-
-                            const response = await fetch(url, {
-                                headers: {
-                                    'Authorization': 'Basic ' + btoa('e7121b3489e7ce5fac7d8fca:')
-                                }
-                            });
-
-                            if (response.status === 429) {
-                                // If rate limited, wait longer and retry
-                                console.log('Rate limited, waiting 5 seconds...');
-                                await new Promise(resolve => setTimeout(resolve, 5000));
-                                continue;
-                            }
-
-                            if (!response.ok) {
-                                throw new Error(`HTTP error! status: ${response.status}`);
-                            }
-
-                            const data = await response.json();
-                            const pageCards = data.docs || [];
-                            
-                            if (pageCards.length === 0) {
-                                break;
-                            }
-
-                            cards = cards.concat(pageCards);
-                            console.log(`Fetched page, total cards: ${cards.length}`);
-                            
-                            bookmark = data.bookmark;
-                            if (!bookmark) {
-                                break;
-                            }
-                        } catch (error) {
-                            console.error('Error fetching cards:', error);
-                            if (timeline) {
-                                timeline.innerHTML = `<div class="timeline-line"></div><p class="error">Error loading cards: ${error.message}</p>`;
-                            }
-                            return;
+                    // Display tag filters
+                    const allTags = new Set();
+                    allCards.forEach(card => {
+                        if (card.tags) {
+                            card.tags.forEach(tag => allTags.add(tag));
                         }
-                    }
-                    
-                    console.log('Total fetched cards:', cards.length);
-
-                    if (cards.length > 0) {
-                        localStorage.setItem('mochiCards', JSON.stringify(cards));
-                        localStorage.setItem('mochiCardsTimestamp', Date.now().toString());
-                    }
-                }
-
-                // Filter for cards with #history tag only
-                const historyCards = cards.filter(card => 
-                    card.tags && card.tags.some(tag => tag.toLowerCase() === 'history')
-                );
-                console.log('History cards:', historyCards.length);
-
-                // Process cards to add parsed dates
-                allCards = historyCards.map(card => {
-                    const parsedDate = extractDateFromCard(card);
-                    const result = {
-                        ...card,
-                        parsedDate,
-                        description: extractDescription(card.content, extractTitle(card.content))
-                    };
-                    if (!parsedDate) {
-                        console.log('Card without valid date:', card.content.substring(0, 100) + '...');
-                    }
-                    return result;
-                }).filter(card => card.parsedDate !== null); // Only keep cards with valid dates
-
-                console.log('Cards with valid dates:', allCards.length);
-                console.log('Date range:', {
-                    earliest: allCards.reduce((min, card) => card.parsedDate < min ? card.parsedDate : min, allCards[0]?.parsedDate),
-                    latest: allCards.reduce((max, card) => card.parsedDate > max ? card.parsedDate : max, allCards[0]?.parsedDate)
-                });
-
-                // Extract all unique tags from processed cards
-                const allTags = new Set();
-                allCards.forEach(card => {
-                    if (card.tags) {
-                        card.tags.forEach(tag => allTags.add(tag));
-                    }
-                });
-
-                console.log('Unique tags:', Array.from(allTags).sort());
-
-                // Update tag filter UI
-                const tagFilter = document.getElementById('tagFilter');
-                if (tagFilter) {
-                    tagFilter.innerHTML = '<option value="">All Tags</option>';
-                    Array.from(allTags).sort().forEach(tag => {
-                        const option = document.createElement('option');
-                        option.value = tag;
-                        option.textContent = tag;
-                        tagFilter.appendChild(option);
                     });
-                }
-
-                // Initial render
-                if (timeline) {
+                    displayTagFilters(allTags);
+                    
+                    // Render timeline
                     renderTimeline(allCards);
+                    
+                    // Update cache info
+                    updateCacheInfo();
+                    
+                    return;
                 }
+                
+                // Check if we have raw cards in cache but need to process them
+                let cards;
+                const cachedCards = localStorage.getItem(CACHE_CONFIG.KEY_CARDS);
+                
+                if (cachedCards && isCacheValid()) {
+                    // Use cached raw cards
+                    cards = JSON.parse(cachedCards);
+                    console.log('Using cached raw cards data:', cards.length);
+                } else {
+                    // Fetch all cards from API
+                    cards = await fetchCardsFromAPI(timeline);
+                    
+                    // Cache the raw cards
+                    if (cards && cards.length > 0) {
+                        localStorage.setItem(CACHE_CONFIG.KEY_CARDS, JSON.stringify(cards));
+                        localStorage.setItem(CACHE_CONFIG.KEY_TIMESTAMP, Date.now().toString());
+                    }
+                }
+                
+                if (!cards || cards.length === 0) {
+                    timeline.innerHTML = '<div class="timeline-line"></div><p class="error">No cards found</p>';
+                    return;
+                }
+                
+                // Process the cards
+                await processAndDisplayCards(cards, timeline);
+                
+                // Update cache info
+                updateCacheInfo();
+                
             } catch (error) {
                 console.error('Error in loadTimelineFromAPI:', error);
                 if (timeline) {
@@ -682,15 +693,288 @@
                 }
             }
         }
+        
+        // Separate function to fetch cards from the API
+        async function fetchCardsFromAPI(timeline) {
+            // Fetch all cards using pagination
+            const cards = [];
+            let bookmark = null;
+            
+            while (true) {
+                try {
+                    // Add delay between requests to avoid rate limiting
+                    if (bookmark) {
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+                    }
 
-        // Add a function to clear the cache if needed
-        function clearCache() {
-            localStorage.removeItem('mochiCards');
-            localStorage.removeItem('mochiCardsTimestamp');
-            console.log('Cache cleared');
+                    const url = new URL('https://app.mochi.cards/api/cards');
+                    url.searchParams.append('limit', '100');
+                    if (bookmark) {
+                        url.searchParams.append('bookmark', bookmark);
+                    }
+
+                    const response = await fetch(url, {
+                        headers: {
+                            'Authorization': 'Basic ' + btoa('e7121b3489e7ce5fac7d8fca:')
+                        }
+                    });
+
+                    if (response.status === 429) {
+                        // If rate limited, wait longer and retry
+                        console.log('Rate limited, waiting 5 seconds...');
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+                        continue;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    const pageCards = data.docs || [];
+                    
+                    if (pageCards.length === 0) {
+                        break;
+                    }
+
+                    cards.push(...pageCards);
+                    console.log(`Fetched page, total cards: ${cards.length}`);
+                    
+                    bookmark = data.bookmark;
+                    if (!bookmark) {
+                        break;
+                    }
+                } catch (error) {
+                    console.error('Error fetching cards:', error);
+                    if (timeline) {
+                        timeline.innerHTML = `<div class="timeline-line"></div><p class="error">Error fetching cards: ${error.message}</p>`;
+                    }
+                    return [];
+                }
+            }
+            
+            console.log('Total fetched cards:', cards.length);
+            return cards;
+        }
+        
+        // Separate function to process cards and display them
+        async function processAndDisplayCards(cards, timeline) {
+            // Filter for cards with #history tag only
+            const historyCards = cards.filter(card => 
+                card.tags && card.tags.some(tag => tag.toLowerCase() === 'history')
+            );
+            console.log('History cards:', historyCards.length);
+
+            // Process cards to add parsed dates (this could be slow for many cards)
+            allCards = historyCards.map(card => {
+                const parsedDate = extractDateFromCard(card);
+                const result = {
+                    ...card,
+                    parsedDate,
+                    description: extractDescription(card.content, extractTitle(card.content))
+                };
+                if (!parsedDate) {
+                    console.log('Card without valid date:', card.content.substring(0, 100) + '...');
+                }
+                return result;
+            }).filter(card => card.parsedDate !== null); // Only keep cards with valid dates
+
+            console.log('Cards with valid dates:', allCards.length);
+            
+            if (allCards.length > 0) {
+                console.log('Date range:', {
+                    earliest: allCards.reduce((min, card) => card.parsedDate < min ? card.parsedDate : min, allCards[0]?.parsedDate),
+                    latest: allCards.reduce((max, card) => card.parsedDate > max ? card.parsedDate : max, allCards[0]?.parsedDate)
+                });
+                
+                // Cache the processed cards
+                localStorage.setItem(CACHE_CONFIG.KEY_PROCESSED_CARDS, JSON.stringify(allCards));
+            }
+
+            // Extract all unique tags from processed cards
+            const allTags = new Set();
+            allCards.forEach(card => {
+                if (card.tags) {
+                    card.tags.forEach(tag => allTags.add(tag));
+                }
+            });
+
+            console.log('Unique tags:', Array.from(allTags).sort());
+            
+            // Display tag filters
+            displayTagFilters(allTags);
+
+            // Render the timeline
+            if (timeline) {
+                renderTimeline(allCards);
+            }
         }
 
-        // Add a function to force refresh the data
+        // Cache management functions
+        function getCacheDuration() {
+            const savedDuration = localStorage.getItem(CACHE_CONFIG.KEY_DURATION);
+            return savedDuration ? parseInt(savedDuration) : CACHE_CONFIG.DEFAULT_DURATION;
+        }
+        
+        function setCacheDuration(duration) {
+            localStorage.setItem(CACHE_CONFIG.KEY_DURATION, duration.toString());
+            updateCacheInfo();
+        }
+        
+        function isCacheValid() {
+            const cachedData = localStorage.getItem(CACHE_CONFIG.KEY_CARDS);
+            const cacheTimestamp = localStorage.getItem(CACHE_CONFIG.KEY_TIMESTAMP);
+            const cacheDuration = getCacheDuration();
+            
+            // If cache duration is -1, it never expires
+            if (cacheDuration === -1) {
+                return cachedData && cacheTimestamp;
+            }
+            
+            return cachedData && 
+                   cacheTimestamp && 
+                   (Date.now() - parseInt(cacheTimestamp) < cacheDuration);
+        }
+        
+        function clearCache() {
+            localStorage.removeItem(CACHE_CONFIG.KEY_CARDS);
+            localStorage.removeItem(CACHE_CONFIG.KEY_PROCESSED_CARDS);
+            localStorage.removeItem(CACHE_CONFIG.KEY_TIMESTAMP);
+            console.log('Cache cleared');
+            updateCacheInfo();
+        }
+        
+        function updateCacheInfo() {
+            const cacheInfo = document.getElementById('cacheInfo');
+            if (!cacheInfo) return;
+            
+            const cachedData = localStorage.getItem(CACHE_CONFIG.KEY_CARDS);
+            const cacheTimestamp = localStorage.getItem(CACHE_CONFIG.KEY_TIMESTAMP);
+            const cacheDuration = getCacheDuration();
+            
+            if (!cachedData || !cacheTimestamp) {
+                cacheInfo.innerHTML = 'No cached data available';
+                return;
+            }
+            
+            const lastUpdated = new Date(parseInt(cacheTimestamp));
+            let expiryInfo = '';
+            
+            if (cacheDuration === -1) {
+                expiryInfo = 'never expires';
+            } else {
+                const expiryTime = new Date(parseInt(cacheTimestamp) + cacheDuration);
+                const now = new Date();
+                
+                if (expiryTime > now) {
+                    // Calculate time remaining
+                    const timeRemaining = expiryTime - now;
+                    const hoursRemaining = Math.floor(timeRemaining / (60 * 60 * 1000));
+                    const minutesRemaining = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
+                    
+                    expiryInfo = `expires in ${hoursRemaining}h ${minutesRemaining}m`;
+                } else {
+                    expiryInfo = 'expired';
+                }
+            }
+            
+            const dataSize = Math.round((cachedData.length / 1024) * 100) / 100;
+            
+            cacheInfo.innerHTML = `
+                Cache: ${dataSize}KB | Last updated: ${lastUpdated.toLocaleString()} | ${expiryInfo}
+            `;
+        }
+        
+        function manageCacheSettings() {
+            // Show the cache modal
+            document.getElementById('cacheModal').style.display = 'block';
+            
+            // Set the current cache duration in the select
+            const cacheDuration = getCacheDuration();
+            const select = document.getElementById('cacheDuration');
+            
+            if (select) {
+                // Try to find matching option
+                const options = select.options;
+                let found = false;
+                
+                for (let i = 0; i < options.length; i++) {
+                    if (parseInt(options[i].value) === cacheDuration) {
+                        select.selectedIndex = i;
+                        found = true;
+                        break;
+                    }
+                }
+                
+                // If no matching option, add a custom one
+                if (!found && cacheDuration !== CACHE_CONFIG.DEFAULT_DURATION) {
+                    const customOption = document.createElement('option');
+                    customOption.value = cacheDuration;
+                    
+                    if (cacheDuration === -1) {
+                        customOption.textContent = 'No Expiration';
+                    } else {
+                        customOption.textContent = `Custom (${Math.round(cacheDuration / (60 * 60 * 1000))} hours)`;
+                    }
+                    
+                    select.appendChild(customOption);
+                    select.value = cacheDuration;
+                }
+            }
+            
+            // Update cache stats
+            updateCacheStats();
+        }
+        
+        function updateCacheStats() {
+            const cacheStats = document.getElementById('cacheStats');
+            if (!cacheStats) return;
+            
+            const cachedData = localStorage.getItem(CACHE_CONFIG.KEY_CARDS);
+            const cacheTimestamp = localStorage.getItem(CACHE_CONFIG.KEY_TIMESTAMP);
+            const processedCards = localStorage.getItem(CACHE_CONFIG.KEY_PROCESSED_CARDS);
+            
+            if (!cachedData) {
+                cacheStats.innerHTML = '<p>No cache data available</p>';
+                return;
+            }
+            
+            const rawCards = JSON.parse(cachedData);
+            const totalCards = rawCards.length;
+            const rawSize = Math.round((cachedData.length / 1024) * 100) / 100;
+            let processedSize = 0;
+            let historyCards = 0;
+            
+            if (processedCards) {
+                const processed = JSON.parse(processedCards);
+                historyCards = processed.length;
+                processedSize = Math.round((processedCards.length / 1024) * 100) / 100;
+            }
+            
+            const lastUpdated = cacheTimestamp ? new Date(parseInt(cacheTimestamp)).toLocaleString() : 'Unknown';
+            
+            cacheStats.innerHTML = `
+                <p><strong>Last Updated:</strong> ${lastUpdated}</p>
+                <p><strong>Total Cards:</strong> ${totalCards} (${rawSize}KB)</p>
+                <p><strong>History Cards:</strong> ${historyCards} ${processedCards ? `(${processedSize}KB)` : ''}</p>
+            `;
+        }
+        
+        function saveAndCloseCacheSettings() {
+            const select = document.getElementById('cacheDuration');
+            if (select) {
+                setCacheDuration(parseInt(select.value));
+            }
+            
+            document.getElementById('cacheModal').style.display = 'none';
+        }
+        
+        function clearCacheAndClose() {
+            clearCache();
+            document.getElementById('cacheModal').style.display = 'none';
+        }
+        
+        // Force refresh the data
         async function forceRefresh() {
             clearCache();
             await loadTimelineFromAPI();
@@ -791,11 +1075,27 @@
             const centuries = {};
             cards.forEach(card => {
                 const year = card.parsedDate.getFullYear();
-                const century = Math.floor(year / 100);
-                if (!centuries[century]) {
-                    centuries[century] = [];
+                // Calculate century correctly for both BCE and CE dates
+                let century;
+                if (year <= 0) {
+                    // For BCE: Century calculation is different
+                    // -1 to -100 is 1st century BCE
+                    // -101 to -200 is 2nd century BCE, etc.
+                    century = Math.ceil(year / -100);
+                } else {
+                    // For CE: Regular calculation
+                    // 1-100 is 1st century
+                    // 101-200 is 2nd century, etc.
+                    century = Math.ceil(year / 100);
                 }
-                centuries[century].push(card);
+                
+                // Store with BCE/CE suffix for proper sorting
+                const centuryKey = year <= 0 ? `${century}BCE` : `${century}CE`;
+                
+                if (!centuries[centuryKey]) {
+                    centuries[centuryKey] = [];
+                }
+                centuries[centuryKey].push(card);
             });
 
             // Add count to timeline
@@ -805,28 +1105,73 @@
             countInfo.textContent = `Showing ${cards.length} events`;
             timeline.appendChild(countInfo);
 
-            // Render timeline entries
-            Object.keys(centuries).sort((a, b) => sortAscending ? a - b : b - a).forEach(century => {
-                const centuryHeader = document.createElement('h2');
-                const cent = parseInt(century);
-                if (cent < 0) {
-                    centuryHeader.textContent = `${Math.abs(cent) + 1}th Century BCE`;
-                } else {
-                    centuryHeader.textContent = `${cent + 1}th Century`;
+            // Helper function for ordinal suffix
+            function getOrdinalSuffix(num) {
+                const j = num % 10,
+                      k = num % 100;
+                if (j == 1 && k != 11) {
+                    return num + "st";
                 }
+                if (j == 2 && k != 12) {
+                    return num + "nd";
+                }
+                if (j == 3 && k != 13) {
+                    return num + "rd";
+                }
+                return num + "th";
+            }
+
+            // Render timeline entries
+            // Sort centuries chronologically (BCE to CE)
+            const sortedCenturies = Object.keys(centuries).sort((a, b) => {
+                const aIsBCE = a.endsWith('BCE');
+                const bIsBCE = b.endsWith('BCE');
+                
+                if (aIsBCE && !bIsBCE) {
+                    return sortAscending ? -1 : 1; // BCE comes before CE in ascending order
+                }
+                if (!aIsBCE && bIsBCE) {
+                    return sortAscending ? 1 : -1; // CE comes after BCE in ascending order
+                }
+                
+                // Both are BCE or both are CE
+                const aNum = parseInt(a);
+                const bNum = parseInt(b);
+                
+                if (aIsBCE && bIsBCE) {
+                    // Higher numbers come first for BCE (6th century BCE before 5th century BCE)
+                    return sortAscending ? bNum - aNum : aNum - bNum;
+                } else {
+                    // Lower numbers come first for CE (1st century before 2nd century)
+                    return sortAscending ? aNum - bNum : bNum - aNum;
+                }
+            });
+            
+            sortedCenturies.forEach(centuryKey => {
+                const centuryHeader = document.createElement('h2');
+                const isBCE = centuryKey.endsWith('BCE');
+                const cent = parseInt(centuryKey);
+                
+                centuryHeader.textContent = `${getOrdinalSuffix(cent)} Century ${isBCE ? 'BCE' : ''}`;
                 timeline.appendChild(centuryHeader);
 
-                centuries[century].forEach((card, index) => {
+                centuries[centuryKey].forEach((card, index) => {
                     const entry = document.createElement('div');
                     entry.className = 'timeline-entry';
                     entry.style.animationDelay = `${index * 0.05}s`;
 
                     const formattedDate = formatDate(card.parsedDate);
                     const year = card.parsedDate.getFullYear();
-                    const displayYear = year < 0 ? Math.abs(year) : year;
+                    const displayYear = year <= 0 ? Math.abs(year) : year;
+                    
+                    // Create a more informative display for the year in the timeline
+                    let yearDisplay = displayYear.toString();
+                    if (year <= 0) {
+                        yearDisplay = `${yearDisplay}<small>BCE</small>`;
+                    }
 
                     entry.innerHTML = `
-                        <div class="timeline-date">${displayYear}</div>
+                        <div class="timeline-date">${yearDisplay}</div>
                         <div class="timeline-dot"></div>
                         <div class="timeline-content">
                             <h3>${formattedDate}</h3>
@@ -848,10 +1193,21 @@
 
         function toggleSort() {
             sortAscending = !sortAscending;
-            if (timelineData.length > 0) {
-                renderTimeline();
+            if (allCards.length > 0) {
+                renderTimeline(allCards);
             }
         }
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Update cache info
+            updateCacheInfo();
+            
+            // Load timeline automatically if we have valid cache
+            if (isCacheValid()) {
+                loadTimelineFromAPI();
+            }
+        });
     </script>
 </body>
 </html>
