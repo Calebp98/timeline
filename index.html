@@ -258,14 +258,10 @@
 </head>
 <body>
     <article>
-        <h1>History Timeline</h1>
-        <p class="subtitle">A chronological view of historical events from Mochi cards</p>
+        <h1>Significant Inventions</h1>
+        <p class="subtitle">Most significant inventions, and discoveries (according to <a href="https://calebp98.github.io">me</a>).</p>
         
         <section>
-            <div class="instructions">
-                <h2>Mochi History Timeline</h2>
-                <p>This timeline displays your Mochi cards tagged with #history in chronological order.</p>
-            </div>
 
             <div class="controls">
                 <p>
@@ -278,6 +274,7 @@
             </div>
 
             <div id="tagFilters" class="tag-filters" style="display: none;">
+              
                 <h3>Filter by Tags</h3>
                 <div class="filter-controls">
                     <button onclick="selectAllTags()">Select All</button>
@@ -826,14 +823,8 @@
         
         // Separate function to process cards and display them
         async function processAndDisplayCards(cards, timeline) {
-            // Filter for cards with #history tag only
-            const historyCards = cards.filter(card => 
-                card.tags && card.tags.some(tag => tag.toLowerCase() === 'history')
-            );
-            console.log('History cards:', historyCards.length);
-
-            // Process cards to add parsed dates (this could be slow for many cards)
-            allCards = historyCards.map(card => {
+            // Remove history tag filtering since all cards already have it
+            allCards = cards.map(card => {
                 const parsedDate = extractDateFromCard(card);
                 const result = {
                     ...card,
