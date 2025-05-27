@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History Timeline - Mochi Cards</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tufte-css/1.8.0/tufte.min.css">
+    <style>
+        /* Custom timeline styles that complement Tufte CSS */
+        body {
+            background-color: #fffff8;
+        }
+
+        .controls {
+            margin: 2rem 0;
+            padding: 1rem;
+            background-color: #f6f6f0;
+            border-left: 3px solid #333;
+        }
+
+        .controls input[type="text"], .controls textarea {
+            font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia, serif;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            background-color: white;
+            margin-right: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .controls textarea {
+            width: 100%;
+            min-height: 200px;
+            font-size: 0.9rem;
+            font-family: monospace;
+        }
+
+        .controls button {
+            font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia, serif;
+            font-size: 1.1rem;
+            padding: 0.5rem 1rem;
+            background-color: #333;
+            color: #fffff8;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-right: 1rem;
+        }
+
+        .controls button:hover {
+            background-color: #555;
+        }
+
+        .tag-filters {
+            margin: 1rem 0;
+            padding: 1rem;
+            background-color: #f9f9f0;
+            border-left: 3px solid #999;
+        }
+
+        .tag-filter {
+            display: inline-block;
+            margin: 0.25rem;
+            padding: 0.3rem 0.8rem;
+            background-color: #333;
+            color: #fffff8;
+            border: 1px solid #333;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .tag-filter:hover {
+            background-color: #555;
+        }
+
+        .tag-filter.inactive {
+            background-color: #fffff8;
+            color: #333;
+            border-color: #ccc;
+        }
+
+        .tag-filter.inactive:hover {
+            border-color: #333;
+        }
+
+        .filter-controls {
+            margin-bottom: 1rem;
+        }
+
+        .filter-controls button {
+            font-size: 0.9rem;
+            padding: 0.3rem 0.8rem;
+            margin-right: 0.5rem;
+        }
+
+        .instructions {
+            background-color: #f9f9f0;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-left: 3px solid #666;
+        }
+
+        .instructions code {
+            background-color: #eee;
+            padding: 0.2rem 0.4rem;
+            font-size: 0.9rem;
+        }
+
+        .timeline-container {
+            position: relative;
+            margin: 3rem 0;
+        }
+
+        .timeline-line {
+            position: absolute;
+            left: 3rem;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background-color: #ccc;
+        }
+
+        .timeline-entry {
+            position: relative;
+            margin-bottom: 3rem;
+            padding-left: 5rem;
+        }
+
+        .timeline-date {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 2.5rem;
+            text-align: right;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: 2.75rem;
+            top: 0.7rem;
+            width: 0.5rem;
+            height: 0.5rem;
+            background-color: #333;
+            border-radius: 50%;
+        }
+
+        .timeline-content {
+            margin-left: 2rem;
+        }
+
+        .timeline-content h3 {
+            font-weight: 400;
+            font-style: italic;
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+
+        .timeline-description {
+            font-size: 1.2rem;
+            line-height: 1.6;
+            color: #111;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Add new style for {{}} content */
+        .timeline-description .highlight {
+            color: #a00;
+            font-weight: bold;
+        }
+
+        .timeline-tags {
+            margin-top: 0.5rem;
+        }
+
+        .tag {
+            display: inline-block;
+            font-size: 0.9rem;
+            color: #666;
+            margin-right: 1rem;
+            font-style: italic;
+        }
+
+        .loading, .error {
+            font-style: italic;
+            color: #666;
+            margin: 2rem 0;
+        }
+
+        .error {
+            color: #a00;
+        }
+
+        /* Tufte-style margin notes for tags on wider screens */
+        @media (min-width: 760px) {
+            .timeline-entry {
+                padding-right: 35%;
+            }
+            
+            .timeline-tags {
+                position: absolute;
+                right: 0;
+                top: 0;
+                width: 30%;
+                margin-top: 0;
+                font-size: 0.85rem;
+                line-height: 1.4;
+            }
+        }
+
+        /* Animation */
+        .timeline-entry {
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        .tab-buttons {
+            margin: 1rem 0;
+        }
+
+        .tab-button {
+            background-color: #f6f6f0;
+            border: 1px solid #ccc;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            margin-right: 0.5rem;
+        }
+
+        .tab-button.active {
+            background-color: #333;
+            color: #fffff8;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <article>
+        <h1>History Timeline</h1>
+        <p class="subtitle">A chronological view of historical events from Mochi cards</p>
+        
+        <section>
+            <div class="instructions">
+                <h2>Mochi History Timeline</h2>
+                <p>This timeline displays your Mochi cards tagged with #history in chronological order.</p>
+            </div>
+
+            <div class="controls">
+                <p>
+                    <button onclick="loadTimelineFromAPI()">Load Timeline</button>
+                    <button onclick="toggleSort()">Toggle Sort Order</button>
+                    <button onclick="forceRefresh()">Force Refresh</button>
+                </p>
+            </div>
+
+            <div id="tagFilters" class="tag-filters" style="display: none;">
+                <h3>Filter by Tags</h3>
+                <div class="filter-controls">
+                    <button onclick="selectAllTags()">Select All</button>
+                    <button onclick="deselectAllTags()">Deselect All</button>
+                </div>
+                <div id="tagList"></div>
+            </div>
+
+            <div id="timeline" class="timeline-container">
+                <div class="timeline-line"></div>
+                <p class="loading">Loading cards from Mochi...</p>
+            </div>
+        </section>
+    </article>
+
+    <script>
+        let timelineData = [];
+        let allCards = [];
+        let sortAscending = true;
+        let activeTags = new Set();
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Date parsing function that handles various formats
+        function parseDate(dateStr) {
+            if (!dateStr) return null;
+            
+            // Clean the string
+            dateStr = dateStr.trim();
+            
+            // Common date patterns to try
+            const patterns = [
+                // Century patterns
+                /(\d{1,2})(st|nd|rd|th)\s+century/i,
+                // Decade patterns
+                /(\d{4})s/,
+                // Year ranges
+                /(\d{4})\s*[-–—]\s*(\d{4})/,
+                // Just year
+                /^(\d{4})$/,
+                /\b(\d{4})\b/,
+                // Various date formats
+                /(\d{1,2})\/(\d{1,2})\/(\d{4})/,
+                /(\d{1,2})-(\d{1,2})-(\d{4})/,
+                /(\d{4})-(\d{1,2})-(\d{1,2})/,
+                /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d{1,2}),?\s+(\d{4})/i,
+                /(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d{4})/i,
+                // BCE/BC dates
+                /(\d+)\s*(BCE|BC)/i,
+                // CE/AD dates
+                /(\d+)\s*(CE|AD)/i
+            ];
+
+            for (let pattern of patterns) {
+                const match = dateStr.match(pattern);
+                if (match) {
+                    // Handle century
+                    if (pattern.toString().includes('century')) {
+                        const century = parseInt(match[1]);
+                        return new Date((century - 1) * 100, 0, 1);
+                    }
+                    
+                    // Handle decade
+                    if (pattern.toString().includes('s/')) {
+                        return new Date(parseInt(match[1]), 0, 1);
+                    }
+                    
+                    // Handle year range (use start year)
+                    if (match[2] && match[1].length === 4 && match[2].length === 4) {
+                        return new Date(parseInt(match[1]), 0, 1);
+                    }
+                    
+                    // Handle BCE dates (negative years)
+                    if (match[2] && (match[2].toUpperCase() === 'BCE' || match[2].toUpperCase() === 'BC')) {
+                        return new Date(-parseInt(match[1]), 0, 1);
+                    }
+                    
+                    // Handle just year
+                    if (match[1] && match[1].length === 4 && !match[2]) {
+                        return new Date(parseInt(match[1]), 0, 1);
+                    }
+                    
+                    // Try to parse the match normally
+                    const dateObj = new Date(match[0]);
+                    if (!isNaN(dateObj.getTime())) {
+                        return dateObj;
+                    }
+                }
+            }
+
+            // Last resort: try native Date parsing
+            const parsed = new Date(dateStr);
+            return isNaN(parsed.getTime()) ? null : parsed;
+        }
+
+        // Extract date from card content
+        function extractDateFromCard(card) {
+            if (!card || !card.content) return null;
+
+            // Split content into question and answer sections
+            const sections = card.content.split('---');
+            const question = sections[0];
+            const answer = sections[1] || '';
+
+            // Look for dates in both question and answer sections
+            const dateMatches = [
+                ...(question.match(/{{([^}]+)}}/g) || []),
+                ...(answer.match(/{{([^}]+)}}/g) || []),
+                // Also look for standalone years in the answer section
+                ...(answer.match(/\b(\d{4})\b/g) || [])
+            ];
+
+            if (dateMatches.length === 0) return null;
+
+            // Try each match until we find a valid date
+            for (const match of dateMatches) {
+                const dateStr = match.replace(/[{}]/g, '').trim();
+                
+                // Handle BCE dates
+                if (dateStr.includes('BCE')) {
+                    const yearMatch = dateStr.match(/(\d+)/);
+                    if (yearMatch) {
+                        const year = parseInt(yearMatch[1]);
+                        // Use negative year for BCE dates
+                        return new Date(-year, 0, 1);
+                    }
+                }
+                
+                // Handle CE dates
+                if (dateStr.includes('CE')) {
+                    const yearMatch = dateStr.match(/(\d+)/);
+                    if (yearMatch) {
+                        const year = parseInt(yearMatch[1]);
+                        return new Date(year, 0, 1);
+                    }
+                }
+                
+                // Handle century dates (including "mid-Xth century")
+                if (dateStr.includes('century')) {
+                    // Remove any hyphens and ordinal indicators for better matching
+                    const cleanStr = dateStr.replace(/-/g, '').replace(/(\d+)(st|nd|rd|th)/, '$1');
+                    const centuryMatch = cleanStr.match(/(\d+)/);
+                    if (centuryMatch) {
+                        const century = parseInt(centuryMatch[1]);
+                        const year = (century - 1) * 100;
+                        // If it's "mid-Xth century", add 50 years
+                        if (cleanStr.includes('mid')) {
+                            return new Date(year + 50, 0, 1);
+                        }
+                        return new Date(year, 0, 1);
+                    }
+                }
+                
+                // Handle year ranges (e.g., "6k BCE")
+                if (dateStr.includes('k')) {
+                    const yearMatch = dateStr.match(/(\d+)k/);
+                    if (yearMatch) {
+                        const year = parseInt(yearMatch[1]) * 1000;
+                        // Check if it's BCE
+                        if (dateStr.includes('BCE')) {
+                            return new Date(-year, 0, 1);
+                        }
+                        return new Date(year, 0, 1);
+                    }
+                }
+                
+                // Handle approximate dates with ~
+                if (dateStr.startsWith('~')) {
+                    const yearMatch = dateStr.match(/~(\d+)/);
+                    if (yearMatch) {
+                        const year = parseInt(yearMatch[1]);
+                        return new Date(year, 0, 1);
+                    }
+                }
+
+                // Handle month and year combinations (e.g., "August 1945")
+                const monthYearMatch = dateStr.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+                if (monthYearMatch) {
+                    const month = monthYearMatch[1].toLowerCase();
+                    const year = parseInt(monthYearMatch[2]);
+                    const monthIndex = ['january', 'february', 'march', 'april', 'may', 'june', 
+                                      'july', 'august', 'september', 'october', 'november', 'december'].indexOf(month);
+                    return new Date(year, monthIndex, 1);
+                }
+                
+                // Handle specific years
+                const year = parseInt(dateStr);
+                if (!isNaN(year)) {
+                    return new Date(year, 0, 1);
+                }
+            }
+            
+            return null;
+        }
+
+        // Format date for display
+        function formatDate(date) {
+            if (!date) return 'Unknown date';
+            
+            const year = date.getFullYear();
+            
+            // Handle BCE dates
+            if (year < 0) {
+                return `${Math.abs(year)} BCE`;
+            }
+            
+            // For dates with full information
+            if (date.getMonth() !== 0 || date.getDate() !== 1) {
+                return date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+            }
+            
+            // For year-only dates
+            return year.toString();
+        }
+
+        // Extract title from content
+        function extractTitle(content) {
+            if (!content) return 'Untitled';
+            
+            const lines = content.split('\n').filter(line => line.trim());
+            
+            // Look for first heading
+            for (let line of lines) {
+                if (line.startsWith('#')) {
+                    return line.replace(/^#+\s*/, '');
+                }
+            }
+            
+            // Otherwise use first non-empty line
+            return lines[0] || 'Untitled';
+        }
+
+        // Extract description from content
+        function extractDescription(content, title) {
+            if (!content) return '';
+            
+            // Split content into lines and remove empty lines
+            const lines = content.split('\n').filter(line => line.trim());
+            
+            // Find the first line that's not a tag
+            const descriptionLine = lines.find(line => !line.trim().startsWith('#'));
+            
+            if (!descriptionLine) return '';
+            
+            // Remove any tags from the line
+            let description = descriptionLine.replace(/#\w+/g, '').trim();
+            
+            // Format {{}} content and remove the curly braces
+            description = description.replace(/\{\{(.*?)\}\}/g, '<span class="highlight">$1</span>');
+            
+            return description;
+        }
+
+        async function loadTimelineFromAPI() {
+            const timeline = document.getElementById('timeline');
+            if (!timeline) {
+                console.error('Timeline element not found');
+                return;
+            }
+
+            timeline.innerHTML = '<div class="timeline-line"></div><p class="loading">Loading cards from Mochi...</p>';
+
+            try {
+                // Check cache first
+                const cachedData = localStorage.getItem('mochiCards');
+                const cacheTimestamp = localStorage.getItem('mochiCardsTimestamp');
+                const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+                let cards;
+                if (cachedData && cacheTimestamp && (Date.now() - parseInt(cacheTimestamp) < CACHE_DURATION)) {
+                    cards = JSON.parse(cachedData);
+                    console.log('Using cached cards data');
+                } else {
+                    // Fetch all cards using pagination
+                    cards = [];
+                    let bookmark = null;
+                    
+                    while (true) {
+                        try {
+                            // Add delay between requests to avoid rate limiting
+                            if (bookmark) {
+                                await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+                            }
+
+                            const url = new URL('https://app.mochi.cards/api/cards');
+                            url.searchParams.append('limit', '100');
+                            if (bookmark) {
+                                url.searchParams.append('bookmark', bookmark);
+                            }
+
+                            const response = await fetch(url, {
+                                headers: {
+                                    'Authorization': 'Basic ' + btoa('e7121b3489e7ce5fac7d8fca:')
+                                }
+                            });
+
+                            if (response.status === 429) {
+                                // If rate limited, wait longer and retry
+                                console.log('Rate limited, waiting 5 seconds...');
+                                await new Promise(resolve => setTimeout(resolve, 5000));
+                                continue;
+                            }
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+
+                            const data = await response.json();
+                            const pageCards = data.docs || [];
+                            
+                            if (pageCards.length === 0) {
+                                break;
+                            }
+
+                            cards = cards.concat(pageCards);
+                            console.log(`Fetched page, total cards: ${cards.length}`);
+                            
+                            bookmark = data.bookmark;
+                            if (!bookmark) {
+                                break;
+                            }
+                        } catch (error) {
+                            console.error('Error fetching cards:', error);
+                            if (timeline) {
+                                timeline.innerHTML = `<div class="timeline-line"></div><p class="error">Error loading cards: ${error.message}</p>`;
+                            }
+                            return;
+                        }
+                    }
+                    
+                    console.log('Total fetched cards:', cards.length);
+
+                    if (cards.length > 0) {
+                        localStorage.setItem('mochiCards', JSON.stringify(cards));
+                        localStorage.setItem('mochiCardsTimestamp', Date.now().toString());
+                    }
+                }
+
+                // Filter for cards with #history tag only
+                const historyCards = cards.filter(card => 
+                    card.tags && card.tags.some(tag => tag.toLowerCase() === 'history')
+                );
+                console.log('History cards:', historyCards.length);
+
+                // Process cards to add parsed dates
+                allCards = historyCards.map(card => {
+                    const parsedDate = extractDateFromCard(card);
+                    const result = {
+                        ...card,
+                        parsedDate,
+                        description: extractDescription(card.content, extractTitle(card.content))
+                    };
+                    if (!parsedDate) {
+                        console.log('Card without valid date:', card.content.substring(0, 100) + '...');
+                    }
+                    return result;
+                }).filter(card => card.parsedDate !== null); // Only keep cards with valid dates
+
+                console.log('Cards with valid dates:', allCards.length);
+                console.log('Date range:', {
+                    earliest: allCards.reduce((min, card) => card.parsedDate < min ? card.parsedDate : min, allCards[0]?.parsedDate),
+                    latest: allCards.reduce((max, card) => card.parsedDate > max ? card.parsedDate : max, allCards[0]?.parsedDate)
+                });
+
+                // Extract all unique tags from processed cards
+                const allTags = new Set();
+                allCards.forEach(card => {
+                    if (card.tags) {
+                        card.tags.forEach(tag => allTags.add(tag));
+                    }
+                });
+
+                console.log('Unique tags:', Array.from(allTags).sort());
+
+                // Update tag filter UI
+                const tagFilter = document.getElementById('tagFilter');
+                if (tagFilter) {
+                    tagFilter.innerHTML = '<option value="">All Tags</option>';
+                    Array.from(allTags).sort().forEach(tag => {
+                        const option = document.createElement('option');
+                        option.value = tag;
+                        option.textContent = tag;
+                        tagFilter.appendChild(option);
+                    });
+                }
+
+                // Initial render
+                if (timeline) {
+                    renderTimeline(allCards);
+                }
+            } catch (error) {
+                console.error('Error in loadTimelineFromAPI:', error);
+                if (timeline) {
+                    timeline.innerHTML = `<div class="timeline-line"></div><p class="error">Error loading cards: ${error.message}</p>`;
+                }
+            }
+        }
+
+        // Add a function to clear the cache if needed
+        function clearCache() {
+            localStorage.removeItem('mochiCards');
+            localStorage.removeItem('mochiCardsTimestamp');
+            console.log('Cache cleared');
+        }
+
+        // Add a function to force refresh the data
+        async function forceRefresh() {
+            clearCache();
+            await loadTimelineFromAPI();
+        }
+
+        function displayTagFilters(tags) {
+            const tagFiltersContainer = document.getElementById('tagFilters');
+            const tagList = document.getElementById('tagList');
+            
+            if (tags.size === 0) {
+                tagFiltersContainer.style.display = 'none';
+                return;
+            }
+
+            tagFiltersContainer.style.display = 'block';
+            tagList.innerHTML = '';
+
+            // Sort tags alphabetically
+            const sortedTags = Array.from(tags).sort();
+
+            sortedTags.forEach(tag => {
+                const tagElement = document.createElement('span');
+                tagElement.className = 'tag-filter';
+                tagElement.textContent = tag;
+                tagElement.onclick = () => toggleTag(tag);
+                tagList.appendChild(tagElement);
+            });
+        }
+
+        function toggleTag(tag) {
+            if (activeTags.has(tag)) {
+                activeTags.delete(tag);
+            } else {
+                activeTags.add(tag);
+            }
+            updateTagDisplay();
+            filterAndRenderTimeline();
+        }
+
+        function updateTagDisplay() {
+            const tagElements = document.querySelectorAll('.tag-filter');
+            tagElements.forEach(element => {
+                const tag = element.textContent;
+                if (activeTags.has(tag)) {
+                    element.classList.remove('inactive');
+                } else {
+                    element.classList.add('inactive');
+                }
+            });
+        }
+
+        function selectAllTags() {
+            const allTags = new Set();
+            allCards.forEach(card => {
+                if (card.tags) {
+                    card.tags.forEach(tag => allTags.add(tag));
+                }
+            });
+            activeTags = new Set(allTags);
+            updateTagDisplay();
+            filterAndRenderTimeline();
+        }
+
+        function deselectAllTags() {
+            activeTags.clear();
+            updateTagDisplay();
+            filterAndRenderTimeline();
+        }
+
+        function filterAndRenderTimeline() {
+            console.log('Filtering cards. Total cards:', allCards.length); // Debug log
+            const filteredCards = allCards.filter(card => {
+                if (!card.tags) return false;
+                return card.tags.some(tag => activeTags.has(tag));
+            });
+            console.log('Filtered cards:', filteredCards.length); // Debug log
+            
+            renderTimeline(filteredCards);
+        }
+
+        function renderTimeline(cards) {
+            const timeline = document.getElementById('timeline');
+            timeline.innerHTML = '<div class="timeline-line"></div>';
+
+            if (cards.length === 0) {
+                timeline.innerHTML += '<p class="loading">No cards with #history tag and parseable dates found for the selected tags</p>';
+                return;
+            }
+
+            // Sort by date (no need to parse dates again since they're already parsed)
+            cards.sort((a, b) => {
+                return sortAscending ? 
+                    a.parsedDate - b.parsedDate : 
+                    b.parsedDate - a.parsedDate;
+            });
+
+            // Group by century for better organization
+            const centuries = {};
+            cards.forEach(card => {
+                const year = card.parsedDate.getFullYear();
+                const century = Math.floor(year / 100);
+                if (!centuries[century]) {
+                    centuries[century] = [];
+                }
+                centuries[century].push(card);
+            });
+
+            // Add count to timeline
+            const countInfo = document.createElement('p');
+            countInfo.style.fontStyle = 'italic';
+            countInfo.style.color = '#666';
+            countInfo.textContent = `Showing ${cards.length} events`;
+            timeline.appendChild(countInfo);
+
+            // Render timeline entries
+            Object.keys(centuries).sort((a, b) => sortAscending ? a - b : b - a).forEach(century => {
+                const centuryHeader = document.createElement('h2');
+                const cent = parseInt(century);
+                if (cent < 0) {
+                    centuryHeader.textContent = `${Math.abs(cent) + 1}th Century BCE`;
+                } else {
+                    centuryHeader.textContent = `${cent + 1}th Century`;
+                }
+                timeline.appendChild(centuryHeader);
+
+                centuries[century].forEach((card, index) => {
+                    const entry = document.createElement('div');
+                    entry.className = 'timeline-entry';
+                    entry.style.animationDelay = `${index * 0.05}s`;
+
+                    const formattedDate = formatDate(card.parsedDate);
+                    const year = card.parsedDate.getFullYear();
+                    const displayYear = year < 0 ? Math.abs(year) : year;
+
+                    entry.innerHTML = `
+                        <div class="timeline-date">${displayYear}</div>
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-content">
+                            <h3>${formattedDate}</h3>
+                            <p class="timeline-description">
+                                ${card.description || ''}
+                            </p>
+                            ${card.tags && card.tags.length > 0 ? `
+                                <div class="timeline-tags">
+                                    ${card.tags.map(tag => `<span class="tag">#${tag}</span>`).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+
+                    timeline.appendChild(entry);
+                });
+            });
+        }
+
+        function toggleSort() {
+            sortAscending = !sortAscending;
+            if (timelineData.length > 0) {
+                renderTimeline();
+            }
+        }
+    </script>
+</body>
+</html>

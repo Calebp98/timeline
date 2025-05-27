@@ -1,0 +1,236 @@
+{
+    "events": [
+      {
+        "id": 1,
+        "content": "Blaise Pascal invents mechanical calculator",
+        "start": "1642-01-01"
+      },
+      {
+        "id": 2,
+        "content": "Pascal describes expected values in probability",
+        "start": "1654-01-01"
+      },
+      {
+        "id": 3,
+        "content": "Leibniz derives chain rule",
+        "start": "1676-01-01"
+      },
+      {
+        "id": 4,
+        "content": "Thomas Bayes publishes work on probability",
+        "start": "1763-01-01"
+      },
+      {
+        "id": 5,
+        "content": "Development of linear regression",
+        "start": "1795-01-01",
+        "end": "1805-12-31"
+      },
+      {
+        "id": 6,
+        "content": "Babbage & Lovelace work on mechanical calculators",
+        "start": "1822-01-01",
+        "end": "1859-12-31"
+      },
+      {
+        "id": 7,
+        "content": "Turing publishes \"On Computable Numbers\"",
+        "start": "1937-01-01"
+      },
+      {
+        "id": 8,
+        "content": "McCulloch and Pitts create first neuron model",
+        "start": "1943-01-01"
+      },
+      {
+        "id": 9,
+        "content": "Hebb develops Hebbian theory",
+        "start": "1949-01-01"
+      },
+      {
+        "id": 10,
+        "content": "Turing publishes \"Computing Machinery and Intelligence\"",
+        "start": "1950-01-01"
+      },
+      {
+        "id": 11,
+        "content": "Rosenblatt introduces Perceptron",
+        "start": "1958-01-01"
+      },
+      {
+        "id": 12,
+        "content": "Kelley develops continuous backpropagation",
+        "start": "1960-01-01"
+      },
+      {
+        "id": 13,
+        "content": "Dreyfus simplifies backpropagation",
+        "start": "1962-01-01"
+      },
+      {
+        "id": 14,
+        "content": "Amari uses stochastic gradient descent",
+        "start": "1967-01-01"
+      },
+      {
+        "id": 15,
+        "content": "First IJCAI conference",
+        "start": "1969-01-01"
+      },
+      {
+        "id": 16,
+        "content": "Werbos lays foundations for backpropagation",
+        "start": "1974-01-01"
+      },
+      {
+        "id": 17,
+        "content": "Hinton et al. formalize backpropagation",
+        "start": "1986-01-01"
+      },
+      {
+        "id": 18,
+        "content": "Hochreiter identifies vanishing gradient problem",
+        "start": "1991-01-01"
+      },
+      {
+        "id": 19,
+        "content": "Deep Blue defeats Kasparov",
+        "start": "1997-01-01"
+      },
+      {
+        "id": 20,
+        "content": "LSTM architecture introduced",
+        "start": "1997-01-01"
+      },
+      {
+        "id": 21,
+        "content": "Nvidia releases first GPU",
+        "start": "1999-01-01"
+      },
+      {
+        "id": 22,
+        "content": "Hinton introduces Deep Belief Networks",
+        "start": "2006-01-01"
+      },
+      {
+        "id": 23,
+        "content": "LSTM wins pattern recognition contests",
+        "start": "2009-01-01"
+      },
+      {
+        "id": 24,
+        "content": "ImageNet dataset released",
+        "start": "2010-01-01"
+      },
+      {
+        "id": 25,
+        "content": "ReLU activation function adoption",
+        "start": "2011-01-01"
+      },
+      {
+        "id": 26,
+        "content": "AlexNet wins ImageNet challenge",
+        "start": "2012-01-01"
+      },
+      {
+        "id": 27,
+        "content": "Goodfellow introduces GANs",
+        "start": "2014-01-01"
+      },
+      {
+        "id": 28,
+        "content": "AlphaGo beats world champion",
+        "start": "2017-01-01"
+      },
+      {
+        "id": 29,
+        "content": "OpenAI bot wins Dota 2 match",
+        "start": "2017-01-01"
+      },
+      {
+        "id": 30,
+        "content": "Transformer architecture introduced",
+        "start": "2017-01-01"
+      },
+      {
+        "id": 31,
+        "content": "BERT released",
+        "start": "2018-01-01"
+      },
+      {
+        "id": 32,
+        "content": "AlphaStar reaches Grandmaster level",
+        "start": "2019-01-01"
+      },
+      {
+        "id": 33,
+        "content": "AlphaFold 2 wins CASP competition",
+        "start": "2020-01-01"
+      },
+      {
+        "id": 34,
+        "content": "GPT-3 introduced",
+        "start": "2020-01-01"
+      },
+      {
+        "id": 35,
+        "content": "GPT-3 demonstrates emergent abilities",
+        "start": "2020-01-01"
+      },
+      {
+        "id": 36,
+        "content": "ChatGPT debut",
+        "start": "2022-11-01"
+      },
+      {
+        "id": 37,
+        "content": "ChatGPT reaches 100M users",
+        "start": "2023-01-01"
+      },
+      {
+        "id": 38,
+        "content": "GPT-4 released",
+        "start": "2023-03-01"
+      },
+      {
+        "id": 39,
+        "content": "Google Bard released",
+        "start": "2023-03-01"
+      },
+      {
+        "id": 40,
+        "content": "Statement on AI Risk signed",
+        "start": "2023-05-01"
+      },
+      {
+        "id": 41,
+        "content": "First AI Insight Forum",
+        "start": "2023-09-13"
+      },
+      {
+        "id": 42,
+        "content": "Biden signs AI Executive Order",
+        "start": "2023-10-30"
+      },
+      {
+        "id": 43,
+        "content": "UK AI Safety Summit",
+        "start": "2023-11-01"
+      },
+      {
+        "id": 44,
+        "content": "Gemini 1.0 Ultra released",
+        "start": "2023-01-01"
+      },
+      {
+        "id": 45,
+        "content": "Gemini 1.5 released",
+        "start": "2024-02-15"
+      },
+      {
+        "id": 46,
+        "content": "AlphaFold 3 unveiled",
+        "start": "2024-01-01"
+      }
+    ]
+  }
