@@ -634,26 +634,93 @@
                 const cachedProcessedCards = localStorage.getItem(CACHE_CONFIG.KEY_PROCESSED_CARDS);
                 
                 if (cachedProcessedCards && isCacheValid()) {
-                    // Use cached processed cards if available and valid
-                    allCards = JSON.parse(cachedProcessedCards);
-                    console.log('Using cached processed cards:', allCards.length);
-                    
-                    // Display tag filters
-                    const allTags = new Set();
-                    allCards.forEach(card => {
-                        if (card.tags) {
-                            card.tags.forEach(tag => allTags.add(tag));
-                        }
-                    });
-                    displayTagFilters(allTags);
-                    
-                    // Render timeline
-                    renderTimeline(allCards);
-                    
-                    // Update cache info
-                    updateCacheInfo();
-                    
-                    return;
+                    try {
+                        // Use cached processed cards if available and valid
+                        allCards = JSON.parse(cachedProcessedCards);
+                        
+                        // Fix dates - JSON doesn't preserve Date objects, so we need to convert strings back to Date objects
+                        allCards = allCards.map(card => {
+                            if (card.parsedDate) {
+                                // Handle our serialized date format (preferred)
+                                if (typeof card.parsedDate === 'object' && card.parsedDate !== null) {
+                                    if (card.parsedDate.hasOwnProperty('isoString') && 
+                                        card.parsedDate.hasOwnProperty('timestamp')) {
+                                        // Use timestamp for most accurate reconstruction
+                                        card.parsedDate = new Date(card.parsedDate.timestamp);
+                                    }
+                                    // Fallback to year/month/day if available
+                                    else if (card.parsedDate.hasOwnProperty('year') && 
+                                        card.parsedDate.hasOwnProperty('month') && 
+                                        card.parsedDate.hasOwnProperty('day')) {
+                                        card.parsedDate = new Date(
+                                            card.parsedDate.year, 
+                                            card.parsedDate.month, 
+                                            card.parsedDate.day
+                                        );
+                                    }
+                                    // If it's already a proper Date instance, keep it
+                                    else if (card.parsedDate instanceof Date && 
+                                        typeof card.parsedDate.getFullYear === 'function') {
+                                        // Nothing to do, it's already a Date
+                                    }
+                                    // Last resort for unrecognized object format
+                                    else {
+                                        try {
+                                            // Try to stringify and parse
+                                            card.parsedDate = new Date(JSON.stringify(card.parsedDate));
+                                        } catch (e) {
+                                            console.error('Could not convert date object:', card.parsedDate);
+                                            throw new Error('Invalid date format in cache');
+                                        }
+                                    }
+                                }
+                                // Handle string format
+                                else if (typeof card.parsedDate === 'string') {
+                                    card.parsedDate = new Date(card.parsedDate);
+                                }
+                                // Handle number format (timestamp)
+                                else if (typeof card.parsedDate === 'number') {
+                                    card.parsedDate = new Date(card.parsedDate);
+                                }
+                                
+                                // Verify the date is valid and has necessary methods
+                                if (!(card.parsedDate instanceof Date) || 
+                                    isNaN(card.parsedDate.getTime()) || 
+                                    typeof card.parsedDate.getFullYear !== 'function') {
+                                    console.error('Invalid date in cached data:', card.parsedDate);
+                                    throw new Error('Invalid date in cached data');
+                                }
+                            } else {
+                                console.error('Card has no parsedDate:', card);
+                                throw new Error('Card missing parsedDate');
+                            }
+                            return card;
+                        });
+                        
+                        console.log('Using cached processed cards:', allCards.length);
+                        
+                        // Display tag filters
+                        const allTags = new Set();
+                        allCards.forEach(card => {
+                            if (card.tags) {
+                                card.tags.forEach(tag => allTags.add(tag));
+                            }
+                        });
+                        displayTagFilters(allTags);
+                        
+                        // Render timeline
+                        renderTimeline(allCards);
+                        
+                        // Update cache info
+                        updateCacheInfo();
+                        
+                        return;
+                    } catch (error) {
+                        console.error('Error using cached data:', error);
+                        // Clear the corrupted cache
+                        clearCache();
+                        // Don't return, continue to fetch fresh data
+                    }
                 }
                 
                 // Check if we have raw cards in cache but need to process them
@@ -788,7 +855,23 @@
                 });
                 
                 // Cache the processed cards
-                localStorage.setItem(CACHE_CONFIG.KEY_PROCESSED_CARDS, JSON.stringify(allCards));
+                // Convert Date objects to a format that can be properly reconstructed
+                const serializedCards = allCards.map(card => {
+                    const serializedCard = {...card};
+                    if (serializedCard.parsedDate instanceof Date) {
+                        // Store date as ISO string with additional metadata
+                        serializedCard.parsedDate = {
+                            isoString: serializedCard.parsedDate.toISOString(),
+                            timestamp: serializedCard.parsedDate.getTime(),
+                            year: serializedCard.parsedDate.getFullYear(),
+                            month: serializedCard.parsedDate.getMonth(),
+                            day: serializedCard.parsedDate.getDate()
+                        };
+                    }
+                    return serializedCard;
+                });
+                
+                localStorage.setItem(CACHE_CONFIG.KEY_PROCESSED_CARDS, JSON.stringify(serializedCards));
             }
 
             // Extract all unique tags from processed cards
@@ -974,6 +1057,12 @@
             document.getElementById('cacheModal').style.display = 'none';
         }
         
+        // Clear cache and reload the page for a fresh start
+        function clearCacheAndReload() {
+            clearCache();
+            window.location.reload();
+        }
+        
         // Force refresh the data
         async function forceRefresh() {
             clearCache();
@@ -1059,17 +1148,38 @@
             const timeline = document.getElementById('timeline');
             timeline.innerHTML = '<div class="timeline-line"></div>';
 
-            if (cards.length === 0) {
+            if (!cards || cards.length === 0) {
                 timeline.innerHTML += '<p class="loading">No cards with #history tag and parseable dates found for the selected tags</p>';
                 return;
             }
-
-            // Sort by date (no need to parse dates again since they're already parsed)
-            cards.sort((a, b) => {
-                return sortAscending ? 
-                    a.parsedDate - b.parsedDate : 
-                    b.parsedDate - a.parsedDate;
-            });
+            
+            try {
+                // Verify all cards have valid parsedDate objects
+                for (const card of cards) {
+                    if (!card.parsedDate || !(card.parsedDate instanceof Date) || typeof card.parsedDate.getFullYear !== 'function') {
+                        console.error('Invalid card date during rendering:', card);
+                        throw new Error('Invalid date object found when rendering timeline');
+                    }
+                }
+                
+                // Sort by date (no need to parse dates again since they're already parsed)
+                cards.sort((a, b) => {
+                    return sortAscending ? 
+                        a.parsedDate - b.parsedDate : 
+                        b.parsedDate - a.parsedDate;
+                });
+            } catch (error) {
+                console.error('Error during timeline rendering:', error);
+                timeline.innerHTML += `
+                    <p class="error">
+                        Error rendering timeline: ${error.message}
+                        <button onclick="clearCacheAndReload()" style="margin-left: 1rem; background-color: #a00; color: white; padding: 0.3rem 0.6rem; border: none; cursor: pointer;">
+                            Clear Cache & Reload
+                        </button>
+                    </p>
+                `;
+                return;
+            }
 
             // Group by century for better organization
             const centuries = {};
